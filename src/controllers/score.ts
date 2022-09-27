@@ -15,7 +15,7 @@ export default class ScoreController {
 
         ctx.status = 200;
         ctx.body = {
-            msg: "操作成功",
+            msg: "操作成功 ",
             data: scores
         };
     }
