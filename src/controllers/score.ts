@@ -1,23 +1,40 @@
 import { Context } from "koa";
-import { getManager } from "typeorm";
+import { createQueryBuilder, getManager, SelectQueryBuilder } from "typeorm";
+const xlsx = require("node-xlsx")
+import path from 'path';
 
 import { Score } from "../entity/score";
 
 export default class ScoreController {
     public static async listScore(ctx: Context) {
-        const ScoreRepository = getManager().getRepository(Score)
-        const scores = await ScoreRepository.find({
-            where: {
-                studentName: ctx.request.body?.studentName as any,
-                idNum: ctx.request.body?.idNum as any,
+        try {
+            const ScoreRepository = getManager().getRepository(Score)
+            const tab = "score"
+            const scoreQueryer = ScoreRepository.createQueryBuilder(tab)//.select(`${tab}.studentName`)
+            const params = (ctx.request.body?.params || {}) as any
+            const pageParam = (ctx.request.body?.pageParam || {}) as any
+            const scores = Object.keys(params).reduce((QB: SelectQueryBuilder<Score>, currParam: string) => {
+                return QB.andWhere(`${tab}.${currParam} LIKE :${currParam}`, { [currParam]: `%${params[currParam]}%` })
+            }, scoreQueryer)
+            if (pageParam.pageSize && pageParam.current) {
+                scores.skip(pageParam.pageSize * (pageParam.current - 1))
+                    .take(pageParam.pageSize)
             }
-        })
+            const res1 = scores.getQueryAndParameters()
+            const res2 = scores.getQuery()
+            const res = await scores.orderBy(`${tab}.id`, "ASC").getMany()
 
-        ctx.status = 200;
-        ctx.body = {
-            msg: "操作成功 ",
-            data: scores
-        };
+            ctx.status = 200;
+            ctx.body = {
+                msg: "操作成功",
+                data: res
+            };
+        } catch (error) {
+            ctx.status = 200;
+            ctx.body = {
+                msg: error,
+            };
+        }
     }
 
     public static async updateScore(ctx: Context) {
@@ -45,13 +62,79 @@ export default class ScoreController {
         };
     }
     public static async delScore(ctx: Context) {
-        const ScoreRepository = getManager().getRepository(Score)
-        const ret = await ScoreRepository.save(ctx.request.body?.id as any)
+        try {
+            const ret = await getManager().getRepository(Score)
+                .createQueryBuilder()
+                .delete()
+                .from(Score)
+                .where("id = :id", { id: ctx.params.id })
+                .execute()
 
-        ctx.status = 200;
-        ctx.body = {
-            msg: "操作成功",
-            data: ret
-        };
+            ctx.status = 200;
+            ctx.body = {
+                msg: "操作成功",
+                data: ret
+            };
+        } catch (error) {
+            ctx.status = 400;
+            ctx.body = {
+                msg: error,
+            };
+        }
+
+    }
+    public static async uploadExcel(ctx: Context) {
+        try {
+            const filePath = ctx.request.files.file.filepath
+            const fileName = ctx.request.files.file.originalFilename
+            const newFileName = ctx.request.files.file.newFilename
+
+            // const getRes = await uploadExcelSrv.getExcelObjs(ctx);
+
+            const downPath = path.resolve(__dirname, `../public/uploads/${newFileName}`);
+            // 读取xlsx，此处可以按照需求更改自己要读的表格
+            const sheets = xlsx.parse(downPath)
+            // 读取xlxs的sheet1 
+            const sheetData = sheets[0].data.splice(1)
+            const Keys = [
+                'institutionName',
+                'studentName',
+                'idType',
+                'idNum',
+                'date',
+                'subjectName',
+                'level',
+                'score',
+            ]
+            const insertData = sheetData.map((itemArr: Array<String>) => {
+                const tmp = {}
+                itemArr = itemArr.splice(1) // 去除序号列
+                Keys.forEach((key, index) => {
+                    tmp[key] = itemArr[index]
+                })
+                return tmp
+            })
+            const ret = await getManager().getRepository(Score)
+                .createQueryBuilder()
+                .insert()
+                .into("score")
+                .values(insertData)
+                // .updateEntity(false)
+                .execute();
+
+            ctx.status = 200;
+            ctx.body = {
+                msg: "操作成功",
+                data: {
+                    filePath,
+                    fileName
+                }
+            };
+        } catch (error) {
+            ctx.status = 400;
+            ctx.body = {
+                msg: error,
+            };
+        }
     }
 }

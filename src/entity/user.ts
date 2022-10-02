@@ -21,7 +21,7 @@ export class User {
     @Length(3, 20)
     @IsNotEmpty()
     @Column()
-    name: String;
+    username: String;
 
     @Length(4, 16)
     @IsNotEmpty()
