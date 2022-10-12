@@ -35,6 +35,6 @@
     "mysql": "^2.18.1",
     "node-xlsx": "^0.21.0",
     "reflect-metadata": "^0.1.13",
-    "typeorm": "^0.3.10",
+    "typeorm": "^0.3.10"
   }
 }

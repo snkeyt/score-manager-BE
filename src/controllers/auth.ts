@@ -57,7 +57,7 @@ export default class AuthController {
             newUser.password = await argon2.hash(ctx.request.body?.password as any);
             const user = await userRepository.save(newUser);
 
-            ctx.status = 201;
+            ctx.status = 200;
             ctx.body = {
                 msg: "注册成功",
                 data: user.id

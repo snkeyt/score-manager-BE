@@ -95,8 +95,8 @@ export default class ScoreController {
             // 读取xlsx，此处可以按照需求更改自己要读的表格
             const sheets = xlsx.parse(downPath)
             // 读取xlxs的sheet1 
-            const sheetData = sheets[0].data.splice(1)
-            const Keys = [
+            const sheetData = sheets[0].data.slice(1, -1)
+            const keys = [
                 'institutionName',
                 'studentName',
                 'idType',
@@ -109,18 +109,32 @@ export default class ScoreController {
             const insertData = sheetData.map((itemArr: Array<String>) => {
                 const tmp = {}
                 itemArr = itemArr.splice(1) // 去除序号列
-                Keys.forEach((key, index) => {
+                keys.forEach((key, index) => {
                     tmp[key] = itemArr[index]
                 })
                 return tmp
             })
-            const ret = await getManager().getRepository(Score)
-                .createQueryBuilder()
-                .insert()
-                .into("score")
-                .values(insertData)
-                // .updateEntity(false)
-                .execute();
+            try {
+                const ret = await getManager().getRepository(Score)
+                    .createQueryBuilder()
+                    .insert()
+                    .into("score")
+                    .values(insertData)
+                    // .updateEntity(false)
+                    .execute();
+            } catch (error) {
+                let msg = "数据库错误"
+                if (error.code === 'ER_DUP_ENTRY') {
+                    msg = `数据重复：【${JSON.stringify(error.parameters.splice([error.index], keys.length))}】}`
+                }
+                ctx.status = 400;
+                ctx.body = {
+                    msg: msg,
+                    err: error,
+                };
+                return
+
+            }
 
             ctx.status = 200;
             ctx.body = {
@@ -133,7 +147,8 @@ export default class ScoreController {
         } catch (error) {
             ctx.status = 400;
             ctx.body = {
-                msg: error,
+                msg: "解析错误",
+                err: error,
             };
         }
     }
